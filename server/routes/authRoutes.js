@@ -6,6 +6,7 @@ import { body, validationResult } from 'express-validator';
 import User from '../models/User.js';
 import Organization from '../models/Organization.js';
 import { protect } from '../middleware/auth.js';
+import { recordAudit } from '../services/auditService.js';
 
 const router = express.Router();
 const getJwtSecret = () => process.env.JWT_SECRET || 'a7dcaf7293f0f1ddb649fbf0d75845c1b688cba5990a702e8e3c5c39dada0942f941963e5ab2a2d55dd12382e2f9f9e1bb2965b36cd864ddb4dbfa445339ec6';
@@ -94,6 +95,10 @@ router.post('/register',
         await sendVerificationEmail(user, rawToken);
         organization.createdBy = user._id;
         await organization.save();
+        await recordAudit(
+          { user, organization, ip: req.ip, get: (header) => req.get(header) },
+          { action: 'organization_created', entityType: 'Organization', entityId: organization._id, metadata: { companyName } }
+        );
         return res.status(201).json({
           success: true,
           message: 'Workspace created. Check your email to verify your admin account before signing in.',

@@ -1,11 +1,13 @@
 import Supplier from '../models/Supplier.js';
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import { getAll, getOne, updateOne, deleteOne } from './baseController.js';
+import { recordAudit } from '../services/auditService.js';
 
 export const createSupplier = async (req, res, next) => {
   try {
     const { organizationId: ignoredOrganizationId, ...body } = req.body;
     const supplier = await Supplier.create({ ...body, organizationId: req.organization._id, createdBy: req.user._id });
+    await recordAudit(req, { action: 'create', entityType: 'Supplier', entityId: supplier._id });
     res.status(201).json({ success: true, data: supplier });
   } catch (error) { next(error); }
 };

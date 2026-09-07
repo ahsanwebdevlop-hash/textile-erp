@@ -21,6 +21,8 @@ import batchRoutes from './routes/batchRoutes.js';
 import qualityRoutes from './routes/qualityRoutes.js';
 import costingRoutes from './routes/costingRoutes.js';
 import complianceRoutes from './routes/complianceRoutes.js';
+import departmentRoutes from './routes/departmentRoutes.js';
+import auditRoutes from './routes/auditRoutes.js';
 
 dotenv.config();
 
@@ -92,6 +94,8 @@ app.use('/api/batches', batchRoutes);
 app.use('/api/quality', qualityRoutes);
 app.use('/api/costing', costingRoutes);
 app.use('/api/compliance', complianceRoutes);
+app.use('/api/departments', departmentRoutes);
+app.use('/api/audit-logs', auditRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

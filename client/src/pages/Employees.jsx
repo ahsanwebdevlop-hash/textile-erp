@@ -5,23 +5,23 @@ import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 
-const DEPARTMENTS = ['None'];
 const ROLES = ['manager', 'employee'];
 
 export default function Employees() {
   const { hasRole } = useApp();
   const [employees, setEmployees] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [formLoading, setFormLoading] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', department: 'None', role: 'employee', phone: '', joiningDate: '' });
+  const [form, setForm] = useState({ name: '', email: '', departmentId: '', role: 'employee', phone: '', joiningDate: '' });
 
-  const canEdit = hasRole(['admin', 'manager']);
+  const canEdit = hasRole(['admin']);
   const canCreateAccount = hasRole(['admin']);
 
-  useEffect(() => { fetchEmployees(); }, []);
+  useEffect(() => { fetchEmployees(); fetchDepartments(); }, []);
 
   const fetchEmployees = async () => {
     try { const res = await api.get('/employees'); setEmployees(res.data.data); }
@@ -29,10 +29,17 @@ export default function Employees() {
     finally { setLoading(false); }
   };
 
-  const resetForm = () => { setForm({ name: '', email: '', department: 'None', role: 'employee', phone: '', joiningDate: '' }); setEditingEmployee(null); };
+  const fetchDepartments = async () => {
+    try {
+      const res = await api.get('/departments?status=active&limit=100');
+      setDepartments(res.data.data || []);
+    } catch (err) { console.error(err); }
+  };
+
+  const resetForm = () => { setForm({ name: '', email: '', departmentId: '', role: 'employee', phone: '', joiningDate: '' }); setEditingEmployee(null); };
   const openAdd = () => { resetForm(); setModalOpen(true); };
   const openEdit = (emp) => {
-    setForm({ name: emp.name, email: emp.userId?.email || '', department: emp.department || 'None', role: emp.role, phone: emp.phone, joiningDate: emp.joiningDate?.split('T')[0] || '' });
+    setForm({ name: emp.name, email: emp.userId?.email || '', departmentId: emp.departmentId?._id || '', role: emp.role, phone: emp.phone, joiningDate: emp.joiningDate?.split('T')[0] || '' });
     setEditingEmployee(emp); setModalOpen(true);
   };
 
@@ -65,7 +72,7 @@ export default function Employees() {
         <span className="font-medium text-gray-900">{val}</span>
       </div>
     )},
-    { key: 'department', label: 'Department', render: (val) => <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${deptColors[val]}`}>{val}</span> },
+    { key: 'department', label: 'Department', render: (val) => <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${deptColors[val] || 'bg-gray-100 text-gray-700'}`}>{val || 'None'}</span> },
     { key: 'role', label: 'Role' },
     { key: 'phone', label: 'Phone' },
     { key: 'joiningDate', label: 'Joining Date', render: (val) => val ? new Date(val).toLocaleDateString() : '-' },
@@ -106,9 +113,9 @@ export default function Employees() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-              <select value={form.department} onChange={e => setForm({ ...form, department: e.target.value })} className="input-field">
-                {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                {form.department !== 'None' && <option value={form.department}>{form.department}</option>}
+              <select value={form.departmentId} onChange={e => setForm({ ...form, departmentId: e.target.value })} className="input-field">
+                <option value="">None</option>
+                {departments.map(department => <option key={department._id} value={department._id}>{department.name}</option>)}
               </select>
             </div>
             <div>

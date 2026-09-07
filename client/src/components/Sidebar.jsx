@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Package, Factory, Users, FileText,
   Truck, ShoppingCart, ShoppingBag, Wallet,
   LogOut, Menu, X, Factory as FactoryIcon,
-  FileCode, PackageCheck, ShieldCheck, Calculator, Award
+  FileCode, PackageCheck, ShieldCheck, Calculator, Award, Building2
 } from 'lucide-react';
 
 const navItems = [
@@ -18,6 +18,7 @@ const navItems = [
   { path: '/sustainability-compliance', label: 'Compliance & Audits', icon: Award, roles: ['admin', 'manager'] },
   { path: '/inventory', label: 'Inventory', icon: Package, roles: ['admin', 'manager'] },
   { path: '/employees', label: 'Employees', icon: Users, roles: ['admin', 'manager'] },
+  { path: '/departments', label: 'Departments', icon: Building2, roles: ['admin'] },
   { path: '/suppliers', label: 'Suppliers', icon: Truck, roles: ['admin', 'manager'] },
   { path: '/purchases', label: 'Purchases', icon: ShoppingCart, roles: ['admin', 'manager'] },
   { path: '/sales-orders', label: 'Sales Orders', icon: ShoppingBag, roles: ['admin', 'manager'] },

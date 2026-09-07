@@ -1,5 +1,6 @@
 import SalesOrder from '../models/SalesOrder.js';
 import { getAll, getOne, updateOne, deleteOne } from './baseController.js';
+import { recordAudit } from '../services/auditService.js';
 
 export const createSalesOrder = async (req, res, next) => {
   try {
@@ -14,6 +15,7 @@ export const createSalesOrder = async (req, res, next) => {
       timeline: [{ status: req.body.orderStatus || 'Pending', timestamp: new Date(), note: 'Order created' }],
       createdBy: req.user._id
     });
+    await recordAudit(req, { action: 'create', entityType: 'SalesOrder', entityId: order._id });
     
     res.status(201).json({ success: true, data: order });
   } catch (error) { next(error); }
@@ -52,6 +54,7 @@ export const updateSalesOrder = async (req, res, next) => {
       updateData,
       { new: true, runValidators: true }
     );
+    await recordAudit(req, { action: 'update', entityType: 'SalesOrder', entityId: order._id, metadata: { status: order.orderStatus || order.status } });
     res.json({ success: true, data: order });
   } catch (error) { next(error); }
 };

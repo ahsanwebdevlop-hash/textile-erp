@@ -1,10 +1,12 @@
 import Transaction from '../models/Transaction.js';
 import { getAll, getOne, updateOne, deleteOne } from './baseController.js';
+import { recordAudit } from '../services/auditService.js';
 
 export const createTransaction = async (req, res, next) => {
   try {
     const { organizationId: ignoredOrganizationId, ...body } = req.body;
     const transaction = await Transaction.create({ ...body, organizationId: req.organization._id, createdBy: req.user._id });
+    await recordAudit(req, { action: 'create', entityType: 'Transaction', entityId: transaction._id });
     res.status(201).json({ success: true, data: transaction });
   } catch (error) { next(error); }
 };

@@ -4,8 +4,10 @@ import nodemailer from 'nodemailer';
 import { body, query } from 'express-validator';
 import Employee from '../models/Employee.js';
 import User from '../models/User.js';
+import Department from '../models/Department.js';
 import { protect, requireOrganization, adminOnly, managerOrAdmin } from '../middleware/auth.js';
 import { getAll, getOne, updateOne, deleteOne } from '../controllers/baseController.js';
+import { recordAudit } from '../services/auditService.js';
 
 const router = express.Router();
 
@@ -37,7 +39,7 @@ router.get('/', protect, [
   query('page').optional().isInt({ min: 1 }),
   query('limit').optional().isInt({ min: 1, max: 100 }),
   query('search').optional().trim().escape(),
-  query('department').optional().isIn(['Production', 'Quality Control', 'Warehouse', 'Design', 'Sales', 'Administration', 'Maintenance'])
+  query('department').optional().trim()
 ], getAll(Employee, 'createdBy userId'));
 
 router.get('/:id', protect, getOne(Employee, 'createdBy userId'));
@@ -45,7 +47,7 @@ router.get('/:id', protect, getOne(Employee, 'createdBy userId'));
 router.post('/', protect, requireOrganization, adminOnly, [
   body('name').trim().notEmpty().withMessage('Name is required'),
   body('email').isEmail().withMessage('Valid employee email is required'),
-  body('department').optional().isIn(['None']).withMessage('Department must be None until departments are configured'),
+  body('departmentId').optional({ values: 'falsy' }).isMongoId().withMessage('Invalid department'),
   body('role').isIn(['manager', 'employee']).withMessage('Role must be Manager or Employee'),
   body('phone').trim().notEmpty().withMessage('Phone is required'),
   body('joiningDate').isISO8601().withMessage('Valid joining date is required')
@@ -54,7 +56,13 @@ router.post('/', protect, requireOrganization, adminOnly, [
     if (!req.organization) {
       return res.status(403).json({ success: false, message: 'An organization is required to create employees' });
     }
-    const { name, email, department = 'None', role, phone, joiningDate } = req.body;
+    const { name, email, departmentId, role, phone, joiningDate } = req.body;
+    const department = departmentId
+      ? await Department.findOne({ _id: departmentId, organizationId: req.organization._id, status: 'active' })
+      : null;
+    if (departmentId && !department) {
+      return res.status(400).json({ success: false, message: 'Department is not active in this organization' });
+    }
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return res.status(400).json({ success: false, message: 'A user with this email already exists' });
@@ -76,7 +84,8 @@ router.post('/', protect, requireOrganization, adminOnly, [
     try {
       employee = await Employee.create({
         name,
-        department,
+        department: department?.name || 'None',
+        departmentId: department?._id,
         role,
         phone,
         joiningDate,
@@ -91,7 +100,15 @@ router.post('/', protect, requireOrganization, adminOnly, [
       throw creationError;
     }
 
-    const responseEmployee = await Employee.findById(employee._id).populate('userId', 'name email role isEmailVerified');
+    const responseEmployee = await Employee.findById(employee._id)
+      .populate('userId', 'name email role isEmailVerified')
+      .populate('departmentId', 'name status');
+    await recordAudit(req, {
+      action: 'employee_account_created',
+      entityType: 'Employee',
+      entityId: employee._id,
+      metadata: { userId: user._id, role, departmentId: department?._id },
+    });
     res.status(201).json({
       success: true,
       message: 'Employee account created. Verification instructions were sent by email.',
@@ -100,7 +117,37 @@ router.post('/', protect, requireOrganization, adminOnly, [
   } catch (error) { next(error); }
 });
 
-router.put('/:id', protect, managerOrAdmin, updateOne(Employee));
-router.delete('/:id', protect, managerOrAdmin, deleteOne(Employee));
+router.put('/:id', protect, adminOnly, [
+  body('departmentId').optional({ values: 'falsy' }).isMongoId().withMessage('Invalid department')
+], async (req, res, next) => {
+  try {
+    const hasDepartmentId = Object.prototype.hasOwnProperty.call(req.body, 'departmentId');
+    const { organizationId: ignoredOrganizationId, createdBy: ignoredCreatedBy, userId: ignoredUserId, department: ignoredDepartment, departmentId, ...body } = req.body;
+    if (hasDepartmentId) {
+      const department = departmentId
+        ? await Department.findOne({ _id: departmentId, organizationId: req.organization._id, status: 'active' })
+        : null;
+      if (departmentId && !department) {
+        return res.status(400).json({ success: false, message: 'Department is not active in this organization' });
+      }
+      body.department = department?.name || 'None';
+      body.departmentId = department?._id;
+    }
+    const employee = await Employee.findOneAndUpdate(
+      { _id: req.params.id, organizationId: req.organization._id },
+      body,
+      { new: true, runValidators: true }
+    ).populate('userId', 'name email role isEmailVerified').populate('departmentId', 'name status');
+    if (!employee) return res.status(404).json({ success: false, message: 'Resource not found' });
+    await recordAudit(req, {
+      action: 'employee_account_updated',
+      entityType: 'Employee',
+      entityId: employee._id,
+      metadata: { role: employee.role, departmentId: employee.departmentId },
+    });
+    res.json({ success: true, data: employee });
+  } catch (error) { next(error); }
+});
+router.delete('/:id', protect, adminOnly, deleteOne(Employee));
 
 export default router;

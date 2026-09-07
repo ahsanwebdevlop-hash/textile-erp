@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
 import Production from './pages/Production';
 import Employees from './pages/Employees';
+import Departments from './pages/Departments';
 import Reports from './pages/Reports';
 import Suppliers from './pages/Suppliers';
 import Purchases from './pages/Purchases';
@@ -19,6 +20,12 @@ import QualityControl from './pages/QualityControl';
 import GarmentCosting from './pages/GarmentCosting';
 import SustainabilityCompliance from './pages/SustainabilityCompliance';
 import VerifyEmail from './pages/VerifyEmail';
+
+function RoleRoute({ roles, children }) {
+  const { user } = useApp();
+  if (!roles.includes(user?.role)) return <Navigate to="/" replace />;
+  return children;
+}
 
 function Layout() {
   const { isAuthenticated, loading } = useApp();
@@ -36,19 +43,20 @@ function Layout() {
             <Route path="/admin-dashboard" element={<Dashboard />} />
             <Route path="/employee-dashboard" element={<Dashboard />} />
             <Route path="/customer-dashboard" element={<Dashboard />} />
-            <Route path="/tech-pack-bom" element={<TechPackBOM />} />
-            <Route path="/batch-tracking" element={<BatchTracking />} />
-            <Route path="/quality-control" element={<QualityControl />} />
-            <Route path="/garment-costing" element={<GarmentCosting />} />
-            <Route path="/sustainability-compliance" element={<SustainabilityCompliance />} />
-            <Route path="/inventory" element={<Inventory />} />
-            <Route path="/production" element={<Production />} />
-            <Route path="/employees" element={<Employees />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/suppliers" element={<Suppliers />} />
-            <Route path="/purchases" element={<Purchases />} />
-            <Route path="/sales-orders" element={<SalesOrders />} />
-            <Route path="/accounts" element={<Accounts />} />
+            <Route path="/tech-pack-bom" element={<RoleRoute roles={['admin', 'manager']}><TechPackBOM /></RoleRoute>} />
+            <Route path="/batch-tracking" element={<RoleRoute roles={['admin', 'manager']}><BatchTracking /></RoleRoute>} />
+            <Route path="/quality-control" element={<RoleRoute roles={['admin', 'manager']}><QualityControl /></RoleRoute>} />
+            <Route path="/garment-costing" element={<RoleRoute roles={['admin', 'manager']}><GarmentCosting /></RoleRoute>} />
+            <Route path="/sustainability-compliance" element={<RoleRoute roles={['admin', 'manager']}><SustainabilityCompliance /></RoleRoute>} />
+            <Route path="/inventory" element={<RoleRoute roles={['admin', 'manager']}><Inventory /></RoleRoute>} />
+            <Route path="/production" element={<RoleRoute roles={['admin', 'manager']}><Production /></RoleRoute>} />
+            <Route path="/employees" element={<RoleRoute roles={['admin', 'manager']}><Employees /></RoleRoute>} />
+            <Route path="/departments" element={<RoleRoute roles={['admin']}><Departments /></RoleRoute>} />
+            <Route path="/reports" element={<RoleRoute roles={['admin', 'manager']}><Reports /></RoleRoute>} />
+            <Route path="/suppliers" element={<RoleRoute roles={['admin', 'manager']}><Suppliers /></RoleRoute>} />
+            <Route path="/purchases" element={<RoleRoute roles={['admin', 'manager']}><Purchases /></RoleRoute>} />
+            <Route path="/sales-orders" element={<RoleRoute roles={['admin', 'manager']}><SalesOrders /></RoleRoute>} />
+            <Route path="/accounts" element={<RoleRoute roles={['admin', 'manager']}><Accounts /></RoleRoute>} />
           </Routes>
         </main>
       </div>

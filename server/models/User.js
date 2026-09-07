@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: [true, 'Email is required'], unique: true, lowercase: true, trim: true },
   password: { type: String, required: [true, 'Password is required'], minlength: [6, 'Password must be at least 6 characters'] },
   role: { type: String, enum: ['admin', 'manager', 'employee', 'customer'], default: 'employee' },
-  organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
+  organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, immutable: true, index: true },
   status: { type: String, enum: ['active', 'suspended'], default: 'active' },
   isEmailVerified: { type: Boolean, default: false },
   emailVerificationToken: { type: String, select: false },

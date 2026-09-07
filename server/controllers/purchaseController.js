@@ -1,10 +1,15 @@
 import PurchaseOrder from '../models/PurchaseOrder.js';
 import Supplier from '../models/Supplier.js';
 import { createOne, getAll, getOne, updateOne, deleteOne } from './baseController.js';
+import { recordAudit } from '../services/auditService.js';
 
 export const createPurchase = async (req, res, next) => {
   try {
     const { items, tax = 0, discount = 0, supplierId } = req.body;
+    if (supplierId) {
+      const supplierExists = await Supplier.exists({ _id: supplierId, organizationId: req.organization._id });
+      if (!supplierExists) return res.status(400).json({ success: false, message: 'Supplier does not belong to this organization' });
+    }
     const subTotal = items.reduce((sum, item) => sum + (Number(item.quantity) * Number(item.unitPrice)), 0);
     const totalAmount = subTotal + Number(tax) - Number(discount);
     
@@ -22,6 +27,7 @@ export const createPurchase = async (req, res, next) => {
         $inc: { totalPurchases: 1, totalAmountSpent: totalAmount }
       });
     }
+    await recordAudit(req, { action: 'create', entityType: 'PurchaseOrder', entityId: purchase._id });
     
     res.status(201).json({ success: true, data: purchase });
   } catch (error) { next(error); }
@@ -33,6 +39,10 @@ export const getPurchase = getOne(PurchaseOrder, 'createdBy');
 export const updatePurchase = async (req, res, next) => {
   try {
     const { items, tax = 0, discount = 0 } = req.body;
+    if (Object.prototype.hasOwnProperty.call(req.body, 'supplierId') && req.body.supplierId) {
+      const supplierExists = await Supplier.exists({ _id: req.body.supplierId, organizationId: req.organization._id });
+      if (!supplierExists) return res.status(400).json({ success: false, message: 'Supplier does not belong to this organization' });
+    }
     if (items) {
       req.body.subTotal = items.reduce((sum, item) => sum + (Number(item.quantity) * Number(item.unitPrice)), 0);
       req.body.totalAmount = req.body.subTotal + Number(tax) - Number(discount);
@@ -44,6 +54,7 @@ export const updatePurchase = async (req, res, next) => {
       { new: true, runValidators: true }
     );
     if (!purchase) return res.status(404).json({ success: false, message: 'Purchase order not found' });
+    await recordAudit(req, { action: 'update', entityType: 'PurchaseOrder', entityId: purchase._id, metadata: { status: purchase.status } });
     res.json({ success: true, data: purchase });
   } catch (error) { next(error); }
 };

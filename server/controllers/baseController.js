@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { recordAudit } from '../services/auditService.js';
 
 const requireOrganizationId = (req) => {
   if (!req.organization?._id) {
@@ -14,6 +15,7 @@ export const createOne = (Model) => async (req, res, next) => {
     const organizationId = requireOrganizationId(req);
     const { organizationId: ignoredOrganizationId, ...body } = req.body;
     const doc = await Model.create({ ...body, organizationId, createdBy: req.user._id });
+    await recordAudit(req, { action: 'create', entityType: Model.modelName, entityId: doc._id });
     res.status(201).json({ success: true, data: doc });
   } catch (error) { next(error); }
 };
@@ -92,6 +94,7 @@ export const updateOne = (Model) => async (req, res, next) => {
       { new: true, runValidators: true }
     );
     if (!doc) return res.status(404).json({ success: false, message: 'Resource not found' });
+    await recordAudit(req, { action: 'update', entityType: Model.modelName, entityId: doc._id });
     res.json({ success: true, data: doc });
   } catch (error) { next(error); }
 };
@@ -101,6 +104,7 @@ export const deleteOne = (Model) => async (req, res, next) => {
     const organizationId = requireOrganizationId(req);
     const doc = await Model.findOneAndDelete({ _id: req.params.id, organizationId });
     if (!doc) return res.status(404).json({ success: false, message: 'Resource not found' });
+    await recordAudit(req, { action: 'delete', entityType: Model.modelName, entityId: doc._id });
     res.json({ success: true, message: 'Resource deleted' });
   } catch (error) { next(error); }
 };

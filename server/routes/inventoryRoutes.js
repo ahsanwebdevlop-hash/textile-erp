@@ -3,6 +3,7 @@ import { body, query } from 'express-validator';
 import Inventory from '../models/Inventory.js';
 import { protect, requireOrganization, managerOrAdmin } from '../middleware/auth.js';
 import { getAll, getOne, updateOne, deleteOne } from '../controllers/baseController.js';
+import { recordAudit } from '../services/auditService.js';
 
 const router = express.Router();
 
@@ -28,6 +29,7 @@ router.post('/', protect, managerOrAdmin, [
   try {
     const { organizationId: ignoredOrganizationId, ...body } = req.body;
     const item = await Inventory.create({ ...body, organizationId: req.organization._id, createdBy: req.user._id });
+    await recordAudit(req, { action: 'create', entityType: 'Inventory', entityId: item._id });
     res.status(201).json({ success: true, data: item });
   } catch (error) { next(error); }
 });
