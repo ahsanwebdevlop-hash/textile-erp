@@ -6,9 +6,9 @@ import { Factory, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 export default function Login() {
   const [isRegister, setIsRegister] = useState(false);
   const [name, setName] = useState('');
+  const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('employee');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -29,10 +29,11 @@ export default function Login() {
   setLoading(true);
   try {
     if (isRegister) { 
-      const message = await register(name, email, password, role);
+      const message = await register(name, email, password, companyName);
       setSuccess(message || 'Account created. Check your email to verify your account.');
       setIsRegister(false);
       setName('');
+      setCompanyName('');
       setPassword('');
       return;
     }
@@ -77,6 +78,12 @@ export default function Login() {
                 <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Enter full name" className="input-field" required={isRegister} />
               </div>
             )}
+            {isRegister && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Company / Mill Name</label>
+                <input type="text" value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Enter company or mill name" className="input-field" required />
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
               <div className="relative">
@@ -94,16 +101,6 @@ export default function Login() {
                 </button>
               </div>
             </div>
-            {isRegister && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Role</label>
-                <select value={role} onChange={e => setRole(e.target.value)} className="input-field">
-                  <option value="employee">Employee</option>
-                  <option value="customer">Customer</option>
-                  <option value="manager">Manager</option>
-                </select>
-              </div>
-            )}
             <button type="submit" disabled={loading}
               className="w-full bg-textile-600 hover:bg-textile-700 text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-60">
               {loading ? (isRegister ? 'Creating Account...' : 'Signing in...') : (isRegister ? 'Create Account' : 'Sign In')}

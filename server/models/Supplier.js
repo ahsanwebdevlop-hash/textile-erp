@@ -8,6 +8,7 @@ const supplierSchema = new mongoose.Schema({
   address: { type: String, trim: true },
   materialType: { type: String, trim: true },
   paymentStatus: { type: String, enum: ['Paid', 'Pending', 'Overdue'], default: 'Pending' },
+  organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 

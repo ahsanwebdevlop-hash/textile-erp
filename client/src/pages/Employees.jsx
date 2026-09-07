@@ -5,8 +5,8 @@ import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 
-const DEPARTMENTS = ['Production', 'Quality Control', 'Warehouse', 'Design', 'Sales', 'Administration', 'Maintenance'];
-const ROLES = ['Production Manager', 'QC Inspector', 'Inventory Supervisor', 'Textile Designer', 'Machine Operator', 'Sales Executive', 'Admin Assistant', 'Maintenance Technician', 'Supervisor', 'Operator'];
+const DEPARTMENTS = ['None'];
+const ROLES = ['manager', 'employee'];
 
 export default function Employees() {
   const { hasRole } = useApp();
@@ -16,9 +16,10 @@ export default function Employees() {
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [formLoading, setFormLoading] = useState(false);
-  const [form, setForm] = useState({ name: '', department: 'Production', role: 'Operator', phone: '', joiningDate: '' });
+  const [form, setForm] = useState({ name: '', email: '', department: 'None', role: 'employee', phone: '', joiningDate: '' });
 
   const canEdit = hasRole(['admin', 'manager']);
+  const canCreateAccount = hasRole(['admin']);
 
   useEffect(() => { fetchEmployees(); }, []);
 
@@ -28,10 +29,10 @@ export default function Employees() {
     finally { setLoading(false); }
   };
 
-  const resetForm = () => { setForm({ name: '', department: 'Production', role: 'Operator', phone: '', joiningDate: '' }); setEditingEmployee(null); };
+  const resetForm = () => { setForm({ name: '', email: '', department: 'None', role: 'employee', phone: '', joiningDate: '' }); setEditingEmployee(null); };
   const openAdd = () => { resetForm(); setModalOpen(true); };
   const openEdit = (emp) => {
-    setForm({ name: emp.name, department: emp.department, role: emp.role, phone: emp.phone, joiningDate: emp.joiningDate?.split('T')[0] || '' });
+    setForm({ name: emp.name, email: emp.userId?.email || '', department: emp.department || 'None', role: emp.role, phone: emp.phone, joiningDate: emp.joiningDate?.split('T')[0] || '' });
     setEditingEmployee(emp); setModalOpen(true);
   };
 
@@ -70,8 +71,6 @@ export default function Employees() {
     { key: 'joiningDate', label: 'Joining Date', render: (val) => val ? new Date(val).toLocaleDateString() : '-' },
   ];
 
-  const deptSummary = DEPARTMENTS.map(dept => ({ dept, count: employees.filter(e => e.department === dept).length })).filter(d => d.count > 0);
-
   if (loading) return <div className="text-center py-20 text-gray-500">Loading employees...</div>;
 
   return (
@@ -81,15 +80,7 @@ export default function Employees() {
           <h2 className="text-2xl font-bold text-gray-900">Employee Management</h2>
           <p className="text-sm text-gray-500 mt-1">Manage your workforce and departments</p>
         </div>
-        {canEdit && <button onClick={openAdd} className="btn-primary"><Plus size={18} /> Add Employee</button>}
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
-        {deptSummary.map(({ dept, count }) => (
-          <div key={dept} className="card p-4 text-center">
-            <p className="text-xs font-medium text-gray-500 mb-1">{dept}</p>
-            <p className="text-xl font-bold text-gray-900">{count}</p>
-          </div>
-        ))}
+        {canCreateAccount && <button onClick={openAdd} className="btn-primary"><Plus size={18} /> Add Employee</button>}
       </div>
       <DataTable columns={columns} data={employees} searchKeys={['name', 'department', 'role', 'phone']}
         actions={canEdit ? (row) => (
@@ -105,17 +96,25 @@ export default function Employees() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
             <input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="input-field" placeholder="Full name" required />
           </div>
+          {!editingEmployee && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Login Email</label>
+              <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="input-field" placeholder="employee@company.com" required />
+              <p className="text-xs text-gray-500 mt-1">A temporary password and verification link will be emailed to this address.</p>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
               <select value={form.department} onChange={e => setForm({ ...form, department: e.target.value })} className="input-field">
                 {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                {form.department !== 'None' && <option value={form.department}>{form.department}</option>}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
               <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} className="input-field">
-                {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                {ROLES.map(r => <option key={r} value={r}>{r === 'manager' ? 'Manager' : 'Employee'}</option>)}
               </select>
             </div>
           </div>

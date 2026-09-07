@@ -1,9 +1,11 @@
 import express from 'express';
 import QualityInspection from '../models/QualityInspection.js';
-import { protect, managerOrAdmin } from '../middleware/auth.js';
+import { protect, requireOrganization, managerOrAdmin } from '../middleware/auth.js';
 import { getAll, getOne, createOne, updateOne, deleteOne } from '../controllers/baseController.js';
 
 const router = express.Router();
+
+router.use(protect, requireOrganization);
 
 router.get('/', protect, getAll(QualityInspection, 'createdBy'));
 router.get('/:id', protect, getOne(QualityInspection, 'createdBy'));

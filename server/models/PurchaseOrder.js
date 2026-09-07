@@ -9,14 +9,18 @@ const purchaseItemSchema = new mongoose.Schema({
 });
 
 const purchaseOrderSchema = new mongoose.Schema({
-  purchaseNumber: { type: String, required: [true, 'Purchase number is required'], unique: true, trim: true },
+  purchaseNumber: { type: String, required: [true, 'Purchase number is required'], trim: true },
   supplier: { type: String, required: [true, 'Supplier is required'], trim: true },
+  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
   items: [purchaseItemSchema],
   totalAmount: { type: Number, required: [true, 'Total amount is required'], min: 0 },
   status: { type: String, enum: ['Pending', 'Approved', 'Received', 'Cancelled'], default: 'Pending' },
   purchaseDate: { type: Date, required: [true, 'Purchase date is required'] },
+  organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
+
+purchaseOrderSchema.index({ organizationId: 1, purchaseNumber: 1 }, { unique: true });
 
 const PurchaseOrder = mongoose.model('PurchaseOrder', purchaseOrderSchema);
 export default PurchaseOrder;

@@ -4,7 +4,8 @@ import { getAll, getOne, updateOne, deleteOne } from './baseController.js';
 
 export const createSupplier = async (req, res, next) => {
   try {
-    const supplier = await Supplier.create({ ...req.body, createdBy: req.user._id });
+    const { organizationId: ignoredOrganizationId, ...body } = req.body;
+    const supplier = await Supplier.create({ ...body, organizationId: req.organization._id, createdBy: req.user._id });
     res.status(201).json({ success: true, data: supplier });
   } catch (error) { next(error); }
 };
@@ -13,10 +14,10 @@ export const getSuppliers = getAll(Supplier, 'createdBy');
 
 export const getSupplier = async (req, res, next) => {
   try {
-    const supplier = await Supplier.findById(req.params.id).populate('createdBy', 'name email');
+    const supplier = await Supplier.findOne({ _id: req.params.id, organizationId: req.organization._id }).populate('createdBy', 'name email');
     if (!supplier) return res.status(404).json({ success: false, message: 'Supplier not found' });
     
-    const purchaseHistory = await PurchaseOrder.find({ supplierId: supplier._id })
+    const purchaseHistory = await PurchaseOrder.find({ supplierId: supplier._id, organizationId: req.organization._id })
       .sort({ createdAt: -1 })
       .populate('createdBy', 'name');
     
@@ -38,16 +39,16 @@ export const deleteSupplier = deleteOne(Supplier);
 export const getSupplierStats = async (req, res, next) => {
   try {
     const [paymentStats, activeCount, totalOutstanding] = await Promise.all([
-      Supplier.aggregate([{ $group: { _id: '$paymentStatus', count: { $sum: 1 } } }]),
-      Supplier.countDocuments({ isActive: true }),
-      Supplier.aggregate([{ $group: { _id: null, total: { $sum: '$outstandingBalance' } } }])
+      Supplier.aggregate([{ $match: { organizationId: req.organization._id } }, { $group: { _id: '$paymentStatus', count: { $sum: 1 } } }]),
+      Supplier.countDocuments({ organizationId: req.organization._id, isActive: true }),
+      Supplier.aggregate([{ $match: { organizationId: req.organization._id } }, { $group: { _id: null, total: { $sum: '$outstandingBalance' } } }])
     ]);
     res.json({ 
       success: true, 
       data: { 
         paymentStats, 
         activeCount, 
-        inactiveCount: await Supplier.countDocuments({ isActive: false }),
+        inactiveCount: await Supplier.countDocuments({ organizationId: req.organization._id, isActive: false }),
         totalOutstanding: totalOutstanding[0]?.total || 0 
       } 
     });
@@ -61,8 +62,8 @@ export const getSupplierPurchaseHistory = async (req, res, next) => {
     const skip = (Number(page) - 1) * Number(limit);
     
     const [history, total] = await Promise.all([
-      PurchaseOrder.find({ supplierId: id }).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)),
-      PurchaseOrder.countDocuments({ supplierId: id })
+      PurchaseOrder.find({ supplierId: id, organizationId: req.organization._id }).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)),
+      PurchaseOrder.countDocuments({ supplierId: id, organizationId: req.organization._id })
     ]);
     
     res.json({

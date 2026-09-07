@@ -8,7 +8,7 @@ const defectItemSchema = new mongoose.Schema({
 });
 
 const qualityInspectionSchema = new mongoose.Schema({
-  inspectionNumber: { type: String, required: [true, 'Inspection number is required'], unique: true, trim: true },
+  inspectionNumber: { type: String, required: [true, 'Inspection number is required'], trim: true },
   inspectionType: { type: String, enum: ['4-Point Fabric Inspection', 'Garment AQL 2.5', 'In-Line Sewing Audit'], required: true },
   batchOrOrderId: { type: String, required: true, trim: true },
   inspectedQuantity: { type: Number, required: true, min: 1 },
@@ -19,8 +19,11 @@ const qualityInspectionSchema = new mongoose.Schema({
   defects: [defectItemSchema],
   inspectorName: { type: String, required: true },
   remarks: { type: String, trim: true },
+  organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
+
+qualityInspectionSchema.index({ organizationId: 1, inspectionNumber: 1 }, { unique: true });
 
 const QualityInspection = mongoose.model('QualityInspection', qualityInspectionSchema);
 export default QualityInspection;

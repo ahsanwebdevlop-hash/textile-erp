@@ -1,10 +1,12 @@
 import express from 'express';
 import { body, query } from 'express-validator';
 import Production from '../models/Production.js';
-import { protect, managerOrAdmin } from '../middleware/auth.js';
+import { protect, requireOrganization, managerOrAdmin } from '../middleware/auth.js';
 import { getAll, getOne, updateOne, deleteOne } from '../controllers/baseController.js';
 
 const router = express.Router();
+
+router.use(protect, requireOrganization);
 
 router.get('/', protect, [
   query('page').optional().isInt({ min: 1 }),
@@ -25,7 +27,8 @@ router.post('/', protect, managerOrAdmin, [
   body('completionDate').isISO8601().withMessage('Valid completion date is required')
 ], async (req, res, next) => {
   try {
-    const order = await Production.create({ ...req.body, createdBy: req.user._id });
+    const { organizationId: ignoredOrganizationId, ...body } = req.body;
+    const order = await Production.create({ ...body, organizationId: req.organization._id, createdBy: req.user._id });
     res.status(201).json({ success: true, data: order });
   } catch (error) { next(error); }
 });

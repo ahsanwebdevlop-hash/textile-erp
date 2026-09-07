@@ -42,8 +42,8 @@ export function AppProvider({ children }) {
     return userData;
   };
 
-  const register = async (name, email, password, role = 'employee') => {
-    const res = await api.post('/auth/register', { name, email, password, role });
+  const register = async (name, email, password, companyName) => {
+    const res = await api.post('/auth/register', { name, email, password, companyName });
     return res.data.message;
   };
 

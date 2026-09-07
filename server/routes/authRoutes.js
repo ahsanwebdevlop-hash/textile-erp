@@ -4,11 +4,25 @@ import crypto from 'node:crypto';
 import nodemailer from 'nodemailer';
 import { body, validationResult } from 'express-validator';
 import User from '../models/User.js';
+import Organization from '../models/Organization.js';
 import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 const getJwtSecret = () => process.env.JWT_SECRET || 'a7dcaf7293f0f1ddb649fbf0d75845c1b688cba5990a702e8e3c5c39dada0942f941963e5ab2a2d55dd12382e2f9f9e1bb2965b36cd864ddb4dbfa445339ec6';
 const generateToken = (user) => jwt.sign({ id: user._id, role: user.role }, getJwtSecret(), { expiresIn: '30d' });
+
+const getOrganizationData = (organization) => organization ? {
+  _id: organization._id,
+  companyName: organization.companyName,
+  description: organization.description,
+  industry: organization.industry,
+  address: organization.address,
+  phone: organization.phone,
+  website: organization.website,
+  currency: organization.currency,
+  timezone: organization.timezone,
+  status: organization.status,
+} : null;
 
 const assertEmailConfiguration = () => {
   if (!process.env.EMAIL_HOST || !process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
@@ -41,6 +55,7 @@ router.post('/register',
     body('name').trim().notEmpty().withMessage('Name is required'),
     body('email').isEmail().withMessage('Please enter a valid email'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+    body('companyName').trim().notEmpty().withMessage('Company or mill name is required'),
   ],
   async (req, res, next) => {
     try {
@@ -48,32 +63,47 @@ router.post('/register',
       if (!errors.isEmpty()) {
         return res.status(400).json({ success: false, message: errors.array()[0].msg });
       }
-      const { name, email, password, role } = req.body;
-      const accountRole = ['employee', 'manager', 'customer'].includes(String(role).toLowerCase()) ? String(role).toLowerCase() : 'employee';
+      const { name, email, password, companyName, description, industry, address, phone, website, currency, timezone } = req.body;
       assertEmailConfiguration();
       const userExists = await User.findOne({ email });
       if (userExists) {
         return res.status(400).json({ success: false, message: 'User already exists' });
       }
-      const rawToken = crypto.randomBytes(32).toString('hex');
-      const user = await User.create({
-        name,
-        email,
-        password,
-        role: accountRole,
-        emailVerificationToken: crypto.createHash('sha256').update(rawToken).digest('hex'),
-        emailVerificationExpires: Date.now() + 24 * 60 * 60 * 1000,
+      const organization = await Organization.create({
+        companyName,
+        description,
+        industry,
+        address,
+        phone,
+        website,
+        currency,
+        timezone,
       });
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      let user;
       try {
+        user = await User.create({
+          name,
+          email,
+          password,
+          role: 'admin',
+          organizationId: organization._id,
+          emailVerificationToken: crypto.createHash('sha256').update(rawToken).digest('hex'),
+          emailVerificationExpires: Date.now() + 24 * 60 * 60 * 1000,
+        });
         await sendVerificationEmail(user, rawToken);
+        organization.createdBy = user._id;
+        await organization.save();
+        return res.status(201).json({
+          success: true,
+          message: 'Workspace created. Check your email to verify your admin account before signing in.',
+          data: { organization: getOrganizationData(organization) },
+        });
       } catch (emailError) {
-        await User.deleteOne({ _id: user._id });
+        if (user?._id) await User.deleteOne({ _id: user._id });
+        await Organization.deleteOne({ _id: organization._id });
         throw emailError;
       }
-      res.status(201).json({
-        success: true,
-        message: 'Account created. Check your email to verify your account before signing in.',
-      });
     } catch (error) { next(error); }
   }
 );
@@ -98,12 +128,19 @@ router.post('/login',
       if (!isMatch) {
         return res.status(401).json({ success: false, message: 'Invalid credentials' });
       }
+      if (user.status && user.status !== 'active') {
+        return res.status(403).json({ success: false, message: 'User account is suspended' });
+      }
       if (!user.isEmailVerified) {
         return res.status(403).json({ success: false, message: 'Please verify your email before signing in' });
       }
+      const organization = user.organizationId ? await Organization.findById(user.organizationId) : null;
+      if (organization && organization.status !== 'active') {
+        return res.status(403).json({ success: false, message: 'Organization is inactive' });
+      }
       res.json({
         success: true,
-        data: { _id: user._id, name: user.name, email: user.email, role: user.role, token: generateToken(user) },
+        data: { _id: user._id, name: user.name, email: user.email, role: user.role, status: user.status || 'active', organization: getOrganizationData(organization), token: generateToken(user) },
       });
     } catch (error) { next(error); }
   }
@@ -128,7 +165,17 @@ router.get('/verify-email/:token', async (req, res, next) => {
 
 router.get('/me', protect, async (req, res, next) => {
   try {
-    res.json({ success: true, data: { _id: req.user._id, name: req.user.name, email: req.user.email, role: req.user.role } });
+    res.json({
+      success: true,
+      data: {
+        _id: req.user._id,
+        name: req.user.name,
+        email: req.user.email,
+        role: req.user.role,
+        status: req.user.status || 'active',
+        organization: getOrganizationData(req.organization),
+      },
+    });
   } catch (error) { next(error); }
 });
 

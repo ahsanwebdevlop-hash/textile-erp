@@ -7,6 +7,7 @@ const transactionSchema = new mongoose.Schema({
   category: { type: String, required: [true, 'Category is required'], trim: true },
   date: { type: Date, required: [true, 'Date is required'] },
   description: { type: String, trim: true },
+  organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 

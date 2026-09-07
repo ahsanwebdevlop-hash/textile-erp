@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 const costingSheetSchema = new mongoose.Schema({
-  costingNumber: { type: String, required: [true, 'Costing number is required'], unique: true, trim: true },
+  costingNumber: { type: String, required: [true, 'Costing number is required'], trim: true },
   styleNumber: { type: String, required: true, trim: true },
   customerName: { type: String, required: true, trim: true },
   currency: { type: String, default: 'USD' },
@@ -19,8 +19,11 @@ const costingSheetSchema = new mongoose.Schema({
   quotedFOBPricePerPiece: { type: Number, required: true, min: 0 },
   totalOrderFOBValue: { type: Number, required: true, min: 0 },
   status: { type: String, enum: ['Draft', 'Quoted', 'Approved', 'Rejected'], default: 'Draft' },
+  organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
+
+costingSheetSchema.index({ organizationId: 1, costingNumber: 1 }, { unique: true });
 
 const CostingSheet = mongoose.model('CostingSheet', costingSheetSchema);
 export default CostingSheet;

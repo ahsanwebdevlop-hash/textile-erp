@@ -3,7 +3,8 @@ import { getAll, getOne, updateOne, deleteOne } from './baseController.js';
 
 export const createTransaction = async (req, res, next) => {
   try {
-    const transaction = await Transaction.create({ ...req.body, createdBy: req.user._id });
+    const { organizationId: ignoredOrganizationId, ...body } = req.body;
+    const transaction = await Transaction.create({ ...body, organizationId: req.organization._id, createdBy: req.user._id });
     res.status(201).json({ success: true, data: transaction });
   } catch (error) { next(error); }
 };
@@ -20,7 +21,8 @@ export const getAccountsSummary = async (req, res, next) => {
     if (startDate) dateFilter.$gte = new Date(startDate);
     if (endDate) dateFilter.$lte = new Date(endDate);
     
-    const matchStage = Object.keys(dateFilter).length > 0 ? { date: dateFilter } : {};
+    const matchStage = { organizationId: req.organization._id };
+    if (Object.keys(dateFilter).length > 0) matchStage.date = dateFilter;
     
     const [income, expense, categoryBreakdown, monthlySummary] = await Promise.all([
       Transaction.aggregate([
@@ -79,7 +81,7 @@ export const getMonthlyReport = async (req, res, next) => {
   try {
     const { year = new Date().getFullYear() } = req.query;
     const report = await Transaction.aggregate([
-      { $match: { date: { $gte: new Date(`${year}-01-01`), $lte: new Date(`${year}-12-31`) } } },
+      { $match: { organizationId: req.organization._id, date: { $gte: new Date(`${year}-01-01`), $lte: new Date(`${year}-12-31`) } } },
       {
         $group: {
           _id: { month: { $month: '$date' }, type: '$type' },

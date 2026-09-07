@@ -10,9 +10,11 @@ import {
   getAccountsSummary,
   getMonthlyReport
 } from '../controllers/accountsController.js';
-import { protect, managerOrAdmin } from '../middleware/auth.js';
+import { protect, requireOrganization, managerOrAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
+
+router.use(protect, requireOrganization);
 
 // Custom date validator
 const isValidDate = (value) => {

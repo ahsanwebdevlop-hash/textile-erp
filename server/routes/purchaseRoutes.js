@@ -9,9 +9,11 @@ import {
   getPurchaseStats,
   getPurchaseHistory
 } from '../controllers/purchaseController.js';
-import { protect, managerOrAdmin } from '../middleware/auth.js';
+import { protect, requireOrganization, managerOrAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
+
+router.use(protect, requireOrganization);
 
 router.get('/', protect, [
   query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),

@@ -1,10 +1,12 @@
 import express from 'express';
 import { body, query } from 'express-validator';
 import Inventory from '../models/Inventory.js';
-import { protect, managerOrAdmin } from '../middleware/auth.js';
+import { protect, requireOrganization, managerOrAdmin } from '../middleware/auth.js';
 import { getAll, getOne, updateOne, deleteOne } from '../controllers/baseController.js';
 
 const router = express.Router();
+
+router.use(protect, requireOrganization);
 
 router.get('/', protect, [
   query('page').optional().isInt({ min: 1 }),
@@ -24,7 +26,8 @@ router.post('/', protect, managerOrAdmin, [
   body('purchaseDate').isISO8601().withMessage('Valid purchase date is required')
 ], async (req, res, next) => {
   try {
-    const item = await Inventory.create({ ...req.body, createdBy: req.user._id });
+    const { organizationId: ignoredOrganizationId, ...body } = req.body;
+    const item = await Inventory.create({ ...body, organizationId: req.organization._id, createdBy: req.user._id });
     res.status(201).json({ success: true, data: item });
   } catch (error) { next(error); }
 });

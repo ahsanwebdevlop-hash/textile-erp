@@ -7,6 +7,7 @@ const inventorySchema = new mongoose.Schema({
   unit: { type: String, required: [true, 'Unit is required'], enum: ['KG', 'Meter', 'Pieces', 'Roll', 'Box'] },
   supplier: { type: String, required: [true, 'Supplier is required'], trim: true },
   purchaseDate: { type: Date, required: [true, 'Purchase date is required'] },
+  organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 

@@ -1,19 +1,31 @@
 import mongoose from 'mongoose';
 
+const requireOrganizationId = (req) => {
+  if (!req.organization?._id) {
+    const error = new Error('An active organization context is required');
+    error.statusCode = 403;
+    throw error;
+  }
+  return req.organization._id;
+};
+
 export const createOne = (Model) => async (req, res, next) => {
   try {
-    const doc = await Model.create({ ...req.body, createdBy: req.user._id });
+    const organizationId = requireOrganizationId(req);
+    const { organizationId: ignoredOrganizationId, ...body } = req.body;
+    const doc = await Model.create({ ...body, organizationId, createdBy: req.user._id });
     res.status(201).json({ success: true, data: doc });
   } catch (error) { next(error); }
 };
 
 export const getAll = (Model, populateOptions = '') => async (req, res, next) => {
   try {
+    const organizationId = requireOrganizationId(req);
     const { page = 1, limit = 10, search = '', sortBy = 'createdAt', sortOrder = 'desc', ...filters } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
     const sort = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
     
-    let query = {};
+    let query = { organizationId };
     
     // Apply search
     if (search && Model.schema.paths) {
@@ -29,6 +41,7 @@ export const getAll = (Model, populateOptions = '') => async (req, res, next) =>
     
     // Apply filters
     Object.keys(filters).forEach(key => {
+      if (key === 'organizationId') return;
       if (filters[key] && filters[key] !== 'all') {
         if (key === 'startDate' || key === 'endDate') {
           if (!query.date) query.date = {};
@@ -62,7 +75,8 @@ export const getAll = (Model, populateOptions = '') => async (req, res, next) =>
 
 export const getOne = (Model, populateOptions = '') => async (req, res, next) => {
   try {
-    const doc = await Model.findById(req.params.id).populate(populateOptions);
+    const organizationId = requireOrganizationId(req);
+    const doc = await Model.findOne({ _id: req.params.id, organizationId }).populate(populateOptions);
     if (!doc) return res.status(404).json({ success: false, message: 'Resource not found' });
     res.json({ success: true, data: doc });
   } catch (error) { next(error); }
@@ -70,7 +84,13 @@ export const getOne = (Model, populateOptions = '') => async (req, res, next) =>
 
 export const updateOne = (Model) => async (req, res, next) => {
   try {
-    const doc = await Model.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const organizationId = requireOrganizationId(req);
+    const { organizationId: ignoredOrganizationId, createdBy: ignoredCreatedBy, ...body } = req.body;
+    const doc = await Model.findOneAndUpdate(
+      { _id: req.params.id, organizationId },
+      body,
+      { new: true, runValidators: true }
+    );
     if (!doc) return res.status(404).json({ success: false, message: 'Resource not found' });
     res.json({ success: true, data: doc });
   } catch (error) { next(error); }
@@ -78,7 +98,8 @@ export const updateOne = (Model) => async (req, res, next) => {
 
 export const deleteOne = (Model) => async (req, res, next) => {
   try {
-    const doc = await Model.findByIdAndDelete(req.params.id);
+    const organizationId = requireOrganizationId(req);
+    const doc = await Model.findOneAndDelete({ _id: req.params.id, organizationId });
     if (!doc) return res.status(404).json({ success: false, message: 'Resource not found' });
     res.json({ success: true, message: 'Resource deleted' });
   } catch (error) { next(error); }

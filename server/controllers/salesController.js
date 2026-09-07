@@ -6,9 +6,11 @@ export const createSalesOrder = async (req, res, next) => {
     const { quantity, unitPrice } = req.body;
     const totalAmount = Number(quantity) * Number(unitPrice);
     
+    const { organizationId: ignoredOrganizationId, ...body } = req.body;
     const order = await SalesOrder.create({
-      ...req.body,
+      ...body,
       totalAmount,
+      organizationId: req.organization._id,
       timeline: [{ status: req.body.orderStatus || 'Pending', timestamp: new Date(), note: 'Order created' }],
       createdBy: req.user._id
     });
@@ -30,7 +32,7 @@ export const updateSalesOrder = async (req, res, next) => {
       updateData.totalAmount = Number(quantity) * Number(unitPrice);
     }
     
-    const existing = await SalesOrder.findById(req.params.id);
+    const existing = await SalesOrder.findOne({ _id: req.params.id, organizationId: req.organization._id });
     if (!existing) return res.status(404).json({ success: false, message: 'Sales order not found' });
     
     if (orderStatus && existing.orderStatus !== orderStatus) {
@@ -43,7 +45,13 @@ export const updateSalesOrder = async (req, res, next) => {
       };
     }
     
-    const order = await SalesOrder.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
+    delete updateData.organizationId;
+    delete updateData.createdBy;
+    const order = await SalesOrder.findOneAndUpdate(
+      { _id: req.params.id, organizationId: req.organization._id },
+      updateData,
+      { new: true, runValidators: true }
+    );
     res.json({ success: true, data: order });
   } catch (error) { next(error); }
 };
@@ -52,12 +60,13 @@ export const deleteSalesOrder = deleteOne(SalesOrder);
 
 export const getSalesStats = async (req, res, next) => {
   try {
+    const organizationId = req.organization._id;
     const [statusStats, paymentStats, totalRevenue, topCustomers] = await Promise.all([
-      SalesOrder.aggregate([{ $group: { _id: '$orderStatus', count: { $sum: 1 } } }]),
-      SalesOrder.aggregate([{ $group: { _id: '$paymentStatus', count: { $sum: 1 }, total: { $sum: '$totalAmount' } } }]),
-      SalesOrder.aggregate([{ $match: { orderStatus: { $ne: 'Cancelled' } } }, { $group: { _id: null, total: { $sum: '$totalAmount' } } }]),
+      SalesOrder.aggregate([{ $match: { organizationId } }, { $group: { _id: '$orderStatus', count: { $sum: 1 } } }]),
+      SalesOrder.aggregate([{ $match: { organizationId } }, { $group: { _id: '$paymentStatus', count: { $sum: 1 }, total: { $sum: '$totalAmount' } } }]),
+      SalesOrder.aggregate([{ $match: { organizationId, orderStatus: { $ne: 'Cancelled' } } }, { $group: { _id: null, total: { $sum: '$totalAmount' } } }]),
       SalesOrder.aggregate([
-        { $match: { orderStatus: { $ne: 'Cancelled' } } },
+        { $match: { organizationId, orderStatus: { $ne: 'Cancelled' } } },
         { $group: { _id: '$customerName', totalOrders: { $sum: 1 }, totalSpent: { $sum: '$totalAmount' } } },
         { $sort: { totalSpent: -1 } },
         { $limit: 5 }
@@ -79,9 +88,9 @@ export const getSalesStats = async (req, res, next) => {
 export const getCustomerHistory = async (req, res, next) => {
   try {
     const { customerName } = req.params;
-    const history = await SalesOrder.find({ customerName }).sort({ createdAt: -1 });
+    const history = await SalesOrder.find({ customerName, organizationId: req.organization._id }).sort({ createdAt: -1 });
     const stats = await SalesOrder.aggregate([
-      { $match: { customerName } },
+      { $match: { customerName, organizationId: req.organization._id } },
       { $group: { _id: null, totalOrders: { $sum: 1 }, totalSpent: { $sum: '$totalAmount' }, avgOrder: { $avg: '$totalAmount' } } }
     ]);
     

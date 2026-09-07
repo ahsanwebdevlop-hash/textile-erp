@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 const productionSchema = new mongoose.Schema({
-  orderId: { type: String, required: [true, 'Order ID is required'], unique: true, trim: true },
+  orderId: { type: String, required: [true, 'Order ID is required'], trim: true },
   customerName: { type: String, required: [true, 'Customer name is required'], trim: true },
   productName: { type: String, required: [true, 'Product name is required'], trim: true },
   quantity: { type: Number, required: [true, 'Quantity is required'], min: [1, 'Quantity must be at least 1'] },
@@ -16,8 +16,11 @@ const productionSchema = new mongoose.Schema({
   lineEfficiency: { type: Number, default: 85 }, // Sewing Line Efficiency %
   startDate: { type: Date, required: [true, 'Start date is required'] },
   completionDate: { type: Date, required: [true, 'Completion date is required'] },
+  organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
+
+productionSchema.index({ organizationId: 1, orderId: 1 }, { unique: true });
 
 const Production = mongoose.model('Production', productionSchema);
 export default Production;

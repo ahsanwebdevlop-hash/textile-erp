@@ -10,7 +10,7 @@ const bomItemSchema = new mongoose.Schema({
 });
 
 const bomSchema = new mongoose.Schema({
-  styleNumber: { type: String, required: [true, 'Style number is required'], unique: true, trim: true },
+  styleNumber: { type: String, required: [true, 'Style number is required'], trim: true },
   styleName: { type: String, required: [true, 'Style name is required'], trim: true },
   garmentType: { type: String, required: true, enum: ['T-Shirt', 'Polo', 'Denim Jeans', 'Hoodie', 'Dress', 'Bedding', 'Towel', 'Other'] },
   season: { type: String, default: 'Spring/Summer 2026' },
@@ -18,8 +18,11 @@ const bomSchema = new mongoose.Schema({
   fabricComposition: { type: String, trim: true },
   items: [bomItemSchema],
   totalBOMCost: { type: Number, required: true, min: 0 },
+  organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization', required: true, index: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
+
+bomSchema.index({ organizationId: 1, styleNumber: 1 }, { unique: true });
 
 const BOM = mongoose.model('BOM', bomSchema);
 export default BOM;
