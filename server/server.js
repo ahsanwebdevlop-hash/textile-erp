@@ -21,11 +21,30 @@ import batchRoutes from './routes/batchRoutes.js';
 import qualityRoutes from './routes/qualityRoutes.js';
 import costingRoutes from './routes/costingRoutes.js';
 import complianceRoutes from './routes/complianceRoutes.js';
+import customerRoutes from './routes/customerRoutes.js';
+import mrpRoutes from './routes/mrpRoutes.js';
+import bundleRoutes from './routes/bundleRoutes.js';
+import subcontractRoutes from './routes/subcontractRoutes.js';
+import shadeRoutes from './routes/shadeRoutes.js';
+import controlTowerRoutes from './routes/controlTowerRoutes.js';
+import automationRoutes from './routes/automationRoutes.js';
+import machineRoutes from './routes/machineRoutes.js';
+import shipmentRoutes from './routes/shipmentRoutes.js';
+import traceabilityRoutes from './routes/traceabilityRoutes.js';
+import techPackSpecRoutes from './routes/techPackSpecRoutes.js';
+import capacityPlanRoutes from './routes/capacityPlanRoutes.js';
+import fabricQC4PointRoutes from './routes/fabricQC4PointRoutes.js';
+import cutPlanRoutes from './routes/cutPlanRoutes.js';
+import vendorRatingRoutes from './routes/vendorRatingRoutes.js';
+import warehouseBinRoutes from './routes/warehouseBinRoutes.js';
+import financialLedgerRoutes from './routes/financialLedgerRoutes.js';
 
 dotenv.config();
 
 // Connect to Database
-connectDB();
+connectDB().catch((error) => {
+  console.error(`Initial database connection failed: ${error.message}`);
+});
 
 const app = express();
 
@@ -44,7 +63,7 @@ app.use(mongoSanitize());
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: 500,
   message: {
     success: false,
     message: 'Too many requests, please try again later'
@@ -53,16 +72,16 @@ const limiter = rateLimit({
 
 app.use('/api/', limiter);
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 200,
-  message: {
-    success: false,
-    message: 'Too many auth attempts, please try again later'
-  }
-});
-
 app.use(express.json({ limit: '10mb' }));
+
+// Health check should remain available while the database is reconnecting.
+app.get('/api/health', (req, res) => {
+  res.json({
+    success: true,
+    message: 'TextileFlow API is running',
+    version: '3.0.0'
+  });
+});
 
 // Middleware to ensure database connection is ready for every request
 app.use(async (req, res, next) => {
@@ -73,7 +92,7 @@ app.use(async (req, res, next) => {
     console.error('Database middleware error:', err.message);
     res.status(500).json({
       success: false,
-      message: 'Database connection timed out. Ensure MongoDB Atlas Network Access is set to 0.0.0.0/0 (Allow access from anywhere).'
+      message: 'Database connection timed out.'
     });
   }
 });
@@ -92,15 +111,23 @@ app.use('/api/batches', batchRoutes);
 app.use('/api/quality', qualityRoutes);
 app.use('/api/costing', costingRoutes);
 app.use('/api/compliance', complianceRoutes);
-
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'TextileFlow API is running',
-    version: '3.0.0'
-  });
-});
+app.use('/api/customers', customerRoutes);
+app.use('/api/mrp', mrpRoutes);
+app.use('/api/bundles', bundleRoutes);
+app.use('/api/subcontracts', subcontractRoutes);
+app.use('/api/shades', shadeRoutes);
+app.use('/api/control-tower', controlTowerRoutes);
+app.use('/api/automations', automationRoutes);
+app.use('/api/machines', machineRoutes);
+app.use('/api/shipments', shipmentRoutes);
+app.use('/api/traceability', traceabilityRoutes);
+app.use('/api/tech-pack-specs', techPackSpecRoutes);
+app.use('/api/capacity-plans', capacityPlanRoutes);
+app.use('/api/fabric-qc-4point', fabricQC4PointRoutes);
+app.use('/api/cut-plans', cutPlanRoutes);
+app.use('/api/vendor-ratings', vendorRatingRoutes);
+app.use('/api/warehouse-bins', warehouseBinRoutes);
+app.use('/api/financial-ledgers', financialLedgerRoutes);
 
 // Error handler
 app.use(errorHandler);

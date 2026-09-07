@@ -1,63 +1,90 @@
 import SalesOrder from '../models/SalesOrder.js';
-import { getAll, getOne, updateOne, deleteOne } from './baseController.js';
+import { getAll, getOne, deleteOne } from './baseController.js';
+import { generateDocumentNumber } from '../utils/documentNumbering.js';
+import AuditLog from '../models/AuditLog.js';
 
 export const createSalesOrder = async (req, res, next) => {
   try {
-    const { quantity, unitPrice } = req.body;
-    const totalAmount = Number(quantity) * Number(unitPrice);
+    const companyId = req.user?.company?._id || req.user?.company;
+    const { quantity, unitPrice, price } = req.body;
+    const itemPrice = Number(unitPrice || price || 0);
+    const totalAmount = Number(quantity || 1) * itemPrice;
     
+    const orderNumber = req.body.orderNumber || await generateDocumentNumber('SO', companyId);
+
     const order = await SalesOrder.create({
       ...req.body,
-      totalAmount,
-      timeline: [{ status: req.body.orderStatus || 'Pending', timestamp: new Date(), note: 'Order created' }],
+      company: companyId,
+      orderNumber,
+      unitPrice: itemPrice,
+      totalAmount: req.body.totalAmount || totalAmount,
       createdBy: req.user._id
     });
+
+    if (req.user) {
+      await AuditLog.create({
+        company: companyId,
+        user: req.user._id,
+        userName: req.user.name,
+        action: 'CREATE',
+        module: 'Sales Orders',
+        documentId: order._id,
+        details: { orderNumber: order.orderNumber, customer: order.customerName, total: order.totalAmount }
+      });
+    }
     
     res.status(201).json({ success: true, data: order });
   } catch (error) { next(error); }
 };
 
-export const getSalesOrders = getAll(SalesOrder, 'createdBy');
+export const getSalesOrders = getAll(SalesOrder, 'createdBy', 'Sales Orders');
 
-export const getSalesOrder = getOne(SalesOrder, 'createdBy');
+export const getSalesOrder = getOne(SalesOrder, 'createdBy', 'Sales Orders');
 
 export const updateSalesOrder = async (req, res, next) => {
   try {
-    const { quantity, unitPrice, orderStatus } = req.body;
+    const companyId = req.user?.company?._id || req.user?.company;
+    const query = { _id: req.params.id };
+    if (companyId) query.company = companyId;
+
+    const { quantity, unitPrice, price } = req.body;
     const updateData = { ...req.body };
     
-    if (quantity && unitPrice) {
-      updateData.totalAmount = Number(quantity) * Number(unitPrice);
+    if (quantity && (unitPrice || price)) {
+      updateData.totalAmount = Number(quantity) * Number(unitPrice || price);
     }
     
-    const existing = await SalesOrder.findById(req.params.id);
-    if (!existing) return res.status(404).json({ success: false, message: 'Sales order not found' });
+    const order = await SalesOrder.findOneAndUpdate(query, updateData, { new: true, runValidators: true });
+    if (!order) return res.status(404).json({ success: false, message: 'Sales order not found' });
     
-    if (orderStatus && existing.orderStatus !== orderStatus) {
-      updateData.$push = {
-        timeline: {
-          status: orderStatus,
-          timestamp: new Date(),
-          note: req.body.timelineNote || `Status changed to ${orderStatus}`
-        }
-      };
+    if (req.user) {
+      await AuditLog.create({
+        company: companyId,
+        user: req.user._id,
+        userName: req.user.name,
+        action: 'UPDATE',
+        module: 'Sales Orders',
+        documentId: order._id,
+        details: { orderNumber: order.orderNumber, status: order.orderStatus }
+      });
     }
-    
-    const order = await SalesOrder.findByIdAndUpdate(req.params.id, updateData, { new: true, runValidators: true });
+
     res.json({ success: true, data: order });
   } catch (error) { next(error); }
 };
 
-export const deleteSalesOrder = deleteOne(SalesOrder);
+export const deleteSalesOrder = deleteOne(SalesOrder, 'Sales Orders');
 
 export const getSalesStats = async (req, res, next) => {
   try {
-    const [statusStats, paymentStats, totalRevenue, topCustomers] = await Promise.all([
-      SalesOrder.aggregate([{ $group: { _id: '$orderStatus', count: { $sum: 1 } } }]),
-      SalesOrder.aggregate([{ $group: { _id: '$paymentStatus', count: { $sum: 1 }, total: { $sum: '$totalAmount' } } }]),
-      SalesOrder.aggregate([{ $match: { orderStatus: { $ne: 'Cancelled' } } }, { $group: { _id: null, total: { $sum: '$totalAmount' } } }]),
+    const companyId = req.user?.company?._id || req.user?.company;
+    const match = companyId ? { company: companyId } : {};
+
+    const [statusStats, totalRevenue, topCustomers] = await Promise.all([
+      SalesOrder.aggregate([{ $match: match }, { $group: { _id: '$orderStatus', count: { $sum: 1 } } }]),
+      SalesOrder.aggregate([{ $match: { ...match, orderStatus: { $ne: 'Cancelled' } } }, { $group: { _id: null, total: { $sum: '$totalAmount' } } }]),
       SalesOrder.aggregate([
-        { $match: { orderStatus: { $ne: 'Cancelled' } } },
+        { $match: { ...match, orderStatus: { $ne: 'Cancelled' } } },
         { $group: { _id: '$customerName', totalOrders: { $sum: 1 }, totalSpent: { $sum: '$totalAmount' } } },
         { $sort: { totalSpent: -1 } },
         { $limit: 5 }
@@ -68,7 +95,6 @@ export const getSalesStats = async (req, res, next) => {
       success: true, 
       data: { 
         statusStats, 
-        paymentStats, 
         totalRevenue: totalRevenue[0]?.total || 0,
         topCustomers 
       } 
@@ -78,10 +104,14 @@ export const getSalesStats = async (req, res, next) => {
 
 export const getCustomerHistory = async (req, res, next) => {
   try {
+    const companyId = req.user?.company?._id || req.user?.company;
     const { customerName } = req.params;
-    const history = await SalesOrder.find({ customerName }).sort({ createdAt: -1 });
+    const query = { customerName };
+    if (companyId) query.company = companyId;
+
+    const history = await SalesOrder.find(query).sort({ createdAt: -1 });
     const stats = await SalesOrder.aggregate([
-      { $match: { customerName } },
+      { $match: query },
       { $group: { _id: null, totalOrders: { $sum: 1 }, totalSpent: { $sum: '$totalAmount' }, avgOrder: { $avg: '$totalAmount' } } }
     ]);
     

@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
-import { ShieldCheck, Plus, CheckCircle2, XCircle, Sparkles } from 'lucide-react';
+import { ShieldCheck, Plus, CheckCircle2, XCircle, Sparkles, Pencil, Trash2, X } from 'lucide-react';
 
 export default function QualityControl() {
   const [inspections, setInspections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
 
   const generateNewForm = () => ({
@@ -18,10 +20,7 @@ export default function QualityControl() {
     fourPointScore: 12,
     status: 'PASSED',
     inspectorName: 'Senior QC Inspector',
-    remarks: 'AQL 2.5 passed. Minor stitching deviation on 2 samples corrected.',
-    defects: [
-      { defectType: 'Broken Stitch', severity: 'Minor', defectCount: 2, pointsPenalty: 2 }
-    ]
+    remarks: 'AQL 2.5 passed. Minor stitching deviation on 2 samples corrected.'
   });
 
   const [formData, setFormData] = useState(generateNewForm());
@@ -41,11 +40,40 @@ export default function QualityControl() {
     fetchInspections();
   }, []);
 
+  const openNewModal = () => {
+    setEditingItem(null);
+    setFormData(generateNewForm());
+    setErrorMessage('');
+    setShowModal(true);
+  };
+
+  const openEditModal = (insp) => {
+    setEditingItem(insp);
+    setFormData({
+      inspectionNumber: insp.inspectionNumber,
+      inspectionType: insp.inspectionType,
+      batchOrOrderId: insp.batchOrOrderId,
+      inspectedQuantity: insp.inspectedQuantity || 0,
+      sampleSize: insp.sampleSize || 0,
+      totalDefects: insp.totalDefects || 0,
+      fourPointScore: insp.fourPointScore || 0,
+      status: insp.status || 'PASSED',
+      inspectorName: insp.inspectorName || '',
+      remarks: insp.remarks || ''
+    });
+    setErrorMessage('');
+    setShowModal(true);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     try {
-      await api.post('/quality', formData);
+      if (editingItem) {
+        await api.put(`/quality/${editingItem._id}`, formData);
+      } else {
+        await api.post('/quality', formData);
+      }
       setShowModal(false);
       fetchInspections();
     } catch (err) {
@@ -53,10 +81,14 @@ export default function QualityControl() {
     }
   };
 
-  const openNewModal = () => {
-    setFormData(generateNewForm());
-    setErrorMessage('');
-    setShowModal(true);
+  const handleDelete = async (id) => {
+    try {
+      await api.delete(`/quality/${id}`);
+      setDeleteConfirm(null);
+      fetchInspections();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error deleting inspection');
+    }
   };
 
   return (
@@ -99,18 +131,26 @@ export default function QualityControl() {
                     <span className="text-xs font-extrabold text-gray-500">{insp.inspectionNumber}</span>
                     <h3 className="font-bold text-gray-900 text-lg mt-1">{insp.inspectionType}</h3>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-extrabold flex items-center gap-1 shrink-0 ${
-                    insp.status === 'PASSED' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                  }`}>
-                    {insp.status === 'PASSED' ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
-                    {insp.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-3 py-1 rounded-full text-xs font-extrabold flex items-center gap-1 shrink-0 ${
+                      insp.status === 'PASSED' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {insp.status === 'PASSED' ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+                      {insp.status}
+                    </span>
+                    <button onClick={() => openEditModal(insp)} className="p-1 text-gray-400 hover:text-indigo-600 rounded-lg hover:bg-gray-50">
+                      <Pencil size={16} />
+                    </button>
+                    <button onClick={() => setDeleteConfirm(insp)} className="p-1 text-gray-400 hover:text-red-600 rounded-lg hover:bg-gray-50">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="bg-gray-50 p-3 rounded-xl text-xs space-y-1.5 text-gray-600 mb-3 border border-gray-100">
                   <p><span className="font-bold text-gray-800">Order/Batch ID:</span> {insp.batchOrOrderId}</p>
                   <p><span className="font-bold text-gray-800">Batch Qty:</span> {insp.inspectedQuantity} pcs (Sample: {insp.sampleSize})</p>
-                  {insp.inspectionType.includes('4-Point') ? (
+                  {insp.inspectionType?.includes('4-Point') ? (
                     <p><span className="font-bold text-gray-800">4-Point Score:</span> <span className="font-extrabold text-indigo-700">{insp.fourPointScore} pts / 100 sq yds</span></p>
                   ) : (
                     <p><span className="font-bold text-gray-800">Defects Found:</span> <span className="font-extrabold text-amber-700">{insp.totalDefects} defects</span></p>
@@ -132,9 +172,14 @@ export default function QualityControl() {
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto shadow-2xl my-auto">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">File Quality Inspection Audit</h2>
-              <p className="text-xs text-gray-500">Record 4-Point System penalty points or Garment AQL 2.5 results.</p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">{editingItem ? 'Edit Quality Audit' : 'File Quality Inspection Audit'}</h2>
+                <p className="text-xs text-gray-500">Record 4-Point System penalty points or Garment AQL 2.5 results.</p>
+              </div>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
             </div>
 
             {errorMessage && (
@@ -190,9 +235,23 @@ export default function QualityControl() {
 
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
-                <button type="submit" className="btn-primary">Save Inspection Audit</button>
+                <button type="submit" className="btn-primary">{editingItem ? 'Update Audit' : 'Save Inspection Audit'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl">
+            <Trash2 className="mx-auto text-red-500 mb-3" size={36} />
+            <h3 className="font-bold text-gray-900 text-base mb-2">Delete Audit Record?</h3>
+            <p className="text-xs text-gray-500 mb-6">Delete inspection audit {deleteConfirm.inspectionNumber}?</p>
+            <div className="flex justify-center gap-3">
+              <button onClick={() => setDeleteConfirm(null)} className="btn-secondary text-xs">Cancel</button>
+              <button onClick={() => handleDelete(deleteConfirm._id)} className="btn-danger text-xs">Delete Record</button>
+            </div>
           </div>
         </div>
       )}

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
-import { FileCode, Plus, Layers, Sparkles } from 'lucide-react';
+import { FileCode, Plus, Layers, Sparkles, Pencil, Trash2, X } from 'lucide-react';
 
 export default function TechPackBOM() {
   const [boms, setBoms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
     styleNumber: '',
     styleName: '',
@@ -36,15 +37,76 @@ export default function TechPackBOM() {
 
   const calculateTotalBOM = (items) => items.reduce((acc, curr) => acc + (curr.totalCost || 0), 0);
 
+  const resetForm = () => {
+    setEditingId(null);
+    setFormData({
+      styleNumber: '',
+      styleName: '',
+      garmentType: 'T-Shirt',
+      targetGSM: 180,
+      fabricComposition: '100% Combed Cotton Single Jersey',
+      items: [
+        { materialName: '30s/1 Combed Cotton Yarn', category: 'Yarn', consumption: 0.22, unit: 'KG', unitCost: 4.5, totalCost: 0.99 },
+        { materialName: 'Reactive Eco Blue Dye', category: 'Dye Chemical', consumption: 0.015, unit: 'KG', unitCost: 12.0, totalCost: 0.18 },
+        { materialName: 'Polyester Thread 120s', category: 'Trim', consumption: 50, unit: 'Yards', unitCost: 0.002, totalCost: 0.10 },
+      ],
+    });
+  };
+
+  const handleEdit = (bom) => {
+    setEditingId(bom._id);
+    setFormData({
+      styleNumber: bom.styleNumber,
+      styleName: bom.styleName,
+      garmentType: bom.garmentType || 'T-Shirt',
+      targetGSM: bom.targetGSM || 180,
+      fabricComposition: bom.fabricComposition || '',
+      items: bom.items && bom.items.length ? bom.items : [
+        { materialName: 'Cotton Yarn', category: 'Yarn', consumption: 0.2, unit: 'KG', unitCost: 4.5, totalCost: 0.9 }
+      ]
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this Tech Pack?')) return;
+    try {
+      await api.delete(`/bom/${id}`);
+      fetchBOMs();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error deleting BOM');
+    }
+  };
+
+  const addItemRow = () => {
+    setFormData({
+      ...formData,
+      items: [
+        ...formData.items,
+        { materialName: '', category: 'Trim', consumption: 1, unit: 'Pieces', unitCost: 0.1, totalCost: 0.1 }
+      ]
+    });
+  };
+
+  const removeItemRow = (idx) => {
+    const updated = formData.items.filter((_, i) => i !== idx);
+    setFormData({ ...formData, items: updated });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const totalBOMCost = calculateTotalBOM(formData.items);
-      await api.post('/bom', { ...formData, totalBOMCost });
+      if (editingId) {
+        await api.put(`/bom/${editingId}`, { ...formData, totalBOMCost });
+      } else {
+        await api.post('/bom', { ...formData, totalBOMCost });
+      }
       setShowModal(false);
+      resetForm();
       fetchBOMs();
     } catch (err) {
-      alert(err.response?.data?.message || 'Error saving BOM');
+      alert(err.response?.data?.message || 'Error saving Tech Pack');
     }
   };
 
@@ -60,16 +122,16 @@ export default function TechPackBOM() {
             <FileCode /> Tech Pack & Bill of Materials (BOM)
           </h1>
           <p className="text-indigo-200 text-sm mt-1">
-            This module lets you build the exact "ingredient list" for any clothes you manufacture (Yarn, Dyes, Thread, Buttons, Zippers & Costs).
+            Build precise garment recipes specifying exact material requirements (Yarn, Dyes, Thread, Buttons, Zippers & Costs).
           </p>
         </div>
-        <button onClick={() => setShowModal(true)} className="bg-white text-indigo-900 font-bold px-5 py-3 rounded-xl hover:bg-indigo-50 transition-all flex items-center justify-center gap-2 shadow w-full md:w-auto shrink-0">
+        <button onClick={() => { resetForm(); setShowModal(true); }} className="bg-white text-indigo-900 font-bold px-5 py-3 rounded-xl hover:bg-indigo-50 transition-all flex items-center justify-center gap-2 shadow w-full md:w-auto shrink-0">
           <Plus size={20} /> Create New Tech Pack
         </button>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-500 font-medium">Loading clothing recipes...</div>
+        <div className="text-center py-12 text-gray-500 font-medium">Loading garment recipes...</div>
       ) : boms.length === 0 ? (
         <div className="bg-white p-8 md:p-12 rounded-2xl border border-gray-200 text-center shadow-sm">
           <Layers className="mx-auto text-indigo-400 mb-3" size={48} />
@@ -77,7 +139,7 @@ export default function TechPackBOM() {
           <p className="text-gray-500 text-sm max-w-md mx-auto mb-6">
             A Tech Pack is the blueprint of a garment. It details what materials are needed and how much each piece costs to make.
           </p>
-          <button onClick={() => setShowModal(true)} className="btn-primary">
+          <button onClick={() => { resetForm(); setShowModal(true); }} className="btn-primary">
             + Create First Garment Recipe
           </button>
         </div>
@@ -93,14 +155,20 @@ export default function TechPackBOM() {
                     </span>
                     <h3 className="font-bold text-gray-900 text-lg mt-2">{bom.styleName}</h3>
                   </div>
-                  <span className="text-sm font-extrabold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100 shrink-0">
-                    ${bom.totalBOMCost?.toFixed(2)} / pc
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => handleEdit(bom)} className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-lg hover:bg-gray-50">
+                      <Pencil size={16} />
+                    </button>
+                    <button onClick={() => handleDelete(bom._id)} className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-gray-50">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
                 <div className="text-xs text-gray-600 space-y-1.5 mb-4 bg-gray-50 p-3 rounded-xl">
                   <p><span className="font-semibold text-gray-800">Garment Type:</span> {bom.garmentType}</p>
                   <p><span className="font-semibold text-gray-800">Target GSM:</span> {bom.targetGSM} g/m²</p>
                   <p><span className="font-semibold text-gray-800">Fabric Spec:</span> {bom.fabricComposition}</p>
+                  <p><span className="font-semibold text-gray-800">Total BOM Cost:</span> <span className="font-bold text-emerald-600">${bom.totalBOMCost?.toFixed(2)} / pc</span></p>
                 </div>
               </div>
 
@@ -124,9 +192,14 @@ export default function TechPackBOM() {
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto shadow-2xl my-auto">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Create New Garment Recipe (Tech Pack)</h2>
-              <p className="text-xs text-gray-500">Fill in the garment details and raw material requirements.</p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">{editingId ? 'Edit Garment Recipe' : 'Create New Tech Pack'}</h2>
+                <p className="text-xs text-gray-500">Fill in garment specifications and raw material requirements.</p>
+              </div>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -164,10 +237,15 @@ export default function TechPackBOM() {
               </div>
 
               <div className="border-t border-gray-200 pt-4">
-                <h3 className="font-bold text-sm text-gray-800 mb-2">Recipe Items (Yarns, Dyes, Threads, Trims)</h3>
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-bold text-sm text-gray-800">Recipe Items (Yarns, Dyes, Threads, Trims)</h3>
+                  <button type="button" onClick={addItemRow} className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1">
+                    + Add Item
+                  </button>
+                </div>
                 <div className="space-y-2">
                   {formData.items.map((item, idx) => (
-                    <div key={idx} className="flex flex-col sm:grid sm:grid-cols-5 gap-2 items-center bg-gray-50 p-3 rounded-xl text-xs border border-gray-200">
+                    <div key={idx} className="flex flex-col sm:grid sm:grid-cols-6 gap-2 items-center bg-gray-50 p-3 rounded-xl text-xs border border-gray-200">
                       <input type="text" value={item.materialName} onChange={e => {
                         const updated = [...formData.items];
                         updated[idx].materialName = e.target.value;
@@ -186,6 +264,9 @@ export default function TechPackBOM() {
                         setFormData({ ...formData, items: updated });
                       }} className="input-field text-xs w-full" placeholder="Price/unit" />
                       <div className="font-bold text-gray-900 text-right w-full sm:w-auto">${item.totalCost?.toFixed(2)}</div>
+                      <button type="button" onClick={() => removeItemRow(idx)} className="text-red-500 hover:text-red-700">
+                        <X size={16} />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -193,7 +274,7 @@ export default function TechPackBOM() {
 
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
-                <button type="submit" className="btn-primary">Save Garment Recipe</button>
+                <button type="submit" className="btn-primary">{editingId ? 'Update Tech Pack' : 'Save Tech Pack'}</button>
               </div>
             </form>
           </div>

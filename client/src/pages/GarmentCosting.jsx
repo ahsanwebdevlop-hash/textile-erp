@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
-import { Calculator, Plus, DollarSign, Sparkles } from 'lucide-react';
+import { Calculator, Plus, DollarSign, Sparkles, Pencil, Trash2, X } from 'lucide-react';
 
 export default function GarmentCosting() {
   const [sheets, setSheets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   
   const generateNewForm = () => ({
@@ -55,17 +57,49 @@ export default function GarmentCosting() {
     return { subtotal, fob, totalOrder: fob * qty };
   };
 
+  const openNewModal = () => {
+    setEditingItem(null);
+    setFormData(generateNewForm());
+    setErrorMessage('');
+    setShowModal(true);
+  };
+
+  const openEditModal = (sheet) => {
+    setEditingItem(sheet);
+    setFormData({
+      costingNumber: sheet.costingNumber,
+      styleNumber: sheet.styleNumber,
+      customerName: sheet.customerName,
+      orderQuantity: sheet.orderQuantity || 1,
+      yarnCostPerPiece: sheet.yarnCostPerPiece || 0,
+      knittingWeavingCostPerPiece: sheet.knittingWeavingCostPerPiece || 0,
+      dyeingFinishingCostPerPiece: sheet.dyeingFinishingCostPerPiece || 0,
+      trimsCostPerPiece: sheet.trimsCostPerPiece || 0,
+      cmtCostPerPiece: sheet.cmtCostPerPiece || 0,
+      freightAndLogisticsPerPiece: sheet.freightAndLogisticsPerPiece || 0,
+      targetMarginPercent: sheet.targetMarginPercent || 0,
+    });
+    setErrorMessage('');
+    setShowModal(true);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     try {
       const { subtotal, fob, totalOrder } = calculateFOB(formData);
-      await api.post('/costing', {
+      const payload = {
         ...formData,
         subtotalCostPerPiece: subtotal,
         quotedFOBPricePerPiece: fob,
         totalOrderFOBValue: totalOrder,
-      });
+      };
+
+      if (editingItem) {
+        await api.put(`/costing/${editingItem._id}`, payload);
+      } else {
+        await api.post('/costing', payload);
+      }
       setShowModal(false);
       fetchSheets();
     } catch (err) {
@@ -73,10 +107,14 @@ export default function GarmentCosting() {
     }
   };
 
-  const openNewModal = () => {
-    setFormData(generateNewForm());
-    setErrorMessage('');
-    setShowModal(true);
+  const handleDelete = async (id) => {
+    try {
+      await api.delete(`/costing/${id}`);
+      setDeleteConfirm(null);
+      fetchSheets();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error deleting costing sheet');
+    }
   };
 
   return (
@@ -121,9 +159,17 @@ export default function GarmentCosting() {
                     </span>
                     <h3 className="font-bold text-gray-900 text-lg mt-2">{sheet.styleNumber}</h3>
                   </div>
-                  <span className="text-xs font-bold px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg shrink-0">
-                    {sheet.customerName}
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-bold px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg shrink-0 mr-1">
+                      {sheet.customerName}
+                    </span>
+                    <button onClick={() => openEditModal(sheet)} className="p-1 text-gray-400 hover:text-indigo-600 rounded-lg hover:bg-gray-50">
+                      <Pencil size={16} />
+                    </button>
+                    <button onClick={() => setDeleteConfirm(sheet)} className="p-1 text-gray-400 hover:text-red-600 rounded-lg hover:bg-gray-50">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="my-4 p-4 bg-emerald-50/60 rounded-xl border border-emerald-100 flex justify-between items-center">
@@ -156,9 +202,14 @@ export default function GarmentCosting() {
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto shadow-2xl my-auto">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Garment FOB Costing Calculator</h2>
-              <p className="text-xs text-gray-500">Calculate material, labor, and export margin costs.</p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">{editingItem ? 'Edit Costing Sheet' : 'Garment FOB Costing Calculator'}</h2>
+                <p className="text-xs text-gray-500">Calculate material, labor, and export margin costs.</p>
+              </div>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
             </div>
 
             {errorMessage && (
@@ -227,9 +278,23 @@ export default function GarmentCosting() {
 
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
-                <button type="submit" className="btn-primary">Generate Costing Quote</button>
+                <button type="submit" className="btn-primary">{editingItem ? 'Update Costing Quote' : 'Generate Costing Quote'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl">
+            <Trash2 className="mx-auto text-red-500 mb-3" size={36} />
+            <h3 className="font-bold text-gray-900 text-base mb-2">Delete Costing Sheet?</h3>
+            <p className="text-xs text-gray-500 mb-6">Delete costing quote {deleteConfirm.costingNumber}?</p>
+            <div className="flex justify-center gap-3">
+              <button onClick={() => setDeleteConfirm(null)} className="btn-secondary text-xs">Cancel</button>
+              <button onClick={() => handleDelete(deleteConfirm._id)} className="btn-danger text-xs">Delete Quote</button>
+            </div>
           </div>
         </div>
       )}

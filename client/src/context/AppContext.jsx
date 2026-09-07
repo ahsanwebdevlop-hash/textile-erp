@@ -22,6 +22,8 @@ export function AppProvider({ children }) {
     } catch {
       localStorage.removeItem('tf_token');
       localStorage.removeItem('tf_user');
+      setUser(null);
+      setIsAuthenticated(false);
     } finally {
       setLoading(false);
     }
@@ -37,8 +39,8 @@ export function AppProvider({ children }) {
     return true;
   };
 
-  const register = async (name, email, password, role = 'employee') => {
-    const res = await api.post('/auth/register', { name, email, password, role });
+  const register = async (name, email, password, companyName, role = 'admin') => {
+    const res = await api.post('/auth/register', { name, email, password, companyName, role });
     const { token, ...userData } = res.data.data;
     localStorage.setItem('tf_token', token);
     localStorage.setItem('tf_user', JSON.stringify(userData));
@@ -56,6 +58,7 @@ export function AppProvider({ children }) {
 
   const hasRole = (roles) => {
     if (!user) return false;
+    if (['admin', 'super_admin'].includes(user.role)) return true;
     return roles.includes(user.role);
   };
 

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import dns from 'node:dns';
 
 let isConnected = false;
 
@@ -9,6 +10,9 @@ const connectDB = async () => {
   }
 
   const dbUri = process.env.MONGODB_URI || 'mongodb+srv://atlasoakofficial_db_user:kSSb97azX2fd7XKW@cluster0.tfzfkfc.mongodb.net/textileflow?retryWrites=true&w=majority';
+
+  const dnsServers = process.env.MONGODB_DNS_SERVERS?.split(',').map((server) => server.trim()).filter(Boolean);
+  if (dnsServers?.length) dns.setServers(dnsServers);
 
   try {
     const conn = await mongoose.connect(dbUri, {

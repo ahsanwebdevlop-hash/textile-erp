@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
-import { PackageCheck, Plus, QrCode, Sparkles } from 'lucide-react';
+import { PackageCheck, Plus, QrCode, Sparkles, Pencil, Trash2, X, Printer } from 'lucide-react';
 
 export default function BatchTracking() {
   const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [barcodePrintItem, setBarcodePrintItem] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
 
   const generateNewForm = () => ({
@@ -39,22 +42,56 @@ export default function BatchTracking() {
     fetchBatches();
   }, []);
 
+  const openNewModal = () => {
+    setEditingItem(null);
+    setFormData(generateNewForm());
+    setErrorMessage('');
+    setShowModal(true);
+  };
+
+  const openEditModal = (batch) => {
+    setEditingItem(batch);
+    setFormData({
+      rollNumber: batch.rollNumber,
+      lotNumber: batch.lotNumber,
+      fabricName: batch.fabricName,
+      shadeGroup: batch.shadeGroup || 'Shade A (Dark)',
+      grossWeightKg: batch.grossWeightKg || 0,
+      netWeightKg: batch.netWeightKg || 0,
+      lengthMeters: batch.lengthMeters || 0,
+      widthInches: batch.widthInches || 0,
+      gsm: batch.gsm || 0,
+      shrinkagePercent: batch.shrinkagePercent || 0,
+      supplier: batch.supplier || ''
+    });
+    setErrorMessage('');
+    setShowModal(true);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     try {
-      await api.post('/batches', formData);
+      if (editingItem) {
+        await api.put(`/batches/${editingItem._id}`, formData);
+      } else {
+        await api.post('/batches', formData);
+      }
       setShowModal(false);
       fetchBatches();
     } catch (err) {
-      setErrorMessage(err.response?.data?.message || err.message || 'Error creating batch');
+      setErrorMessage(err.response?.data?.message || err.message || 'Error saving batch');
     }
   };
 
-  const openNewModal = () => {
-    setFormData(generateNewForm());
-    setErrorMessage('');
-    setShowModal(true);
+  const handleDelete = async (id) => {
+    try {
+      await api.delete(`/batches/${id}`);
+      setDeleteConfirm(null);
+      fetchBatches();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error deleting batch');
+    }
   };
 
   return (
@@ -89,7 +126,7 @@ export default function BatchTracking() {
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm overflow-x-auto">
-          <table className="w-full text-left text-sm min-w-[700px]">
+          <table className="w-full text-left text-sm min-w-[750px]">
             <thead className="bg-gray-50 text-gray-700 font-semibold border-b border-gray-200">
               <tr>
                 <th className="p-4">Roll & Lot #</th>
@@ -98,6 +135,7 @@ export default function BatchTracking() {
                 <th className="p-4">GSM / Width</th>
                 <th className="p-4">Weight & Length</th>
                 <th className="p-4">Status</th>
+                <th className="p-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -126,8 +164,21 @@ export default function BatchTracking() {
                   </td>
                   <td className="p-4">
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
-                      {batch.status}
+                      {batch.status || 'Active'}
                     </span>
+                  </td>
+                  <td className="p-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button onClick={() => setBarcodePrintItem(batch)} className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg" title="Print Barcode Label">
+                        <Printer size={16} />
+                      </button>
+                      <button onClick={() => openEditModal(batch)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg">
+                        <Pencil size={16} />
+                      </button>
+                      <button onClick={() => setDeleteConfirm(batch)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -136,12 +187,18 @@ export default function BatchTracking() {
         </div>
       )}
 
+      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto shadow-2xl my-auto">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Register Fabric Roll Batch</h2>
-              <p className="text-xs text-gray-500">Record roll barcode, shade classification, and physical specs.</p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">{editingItem ? 'Edit Fabric Roll Batch' : 'Register Fabric Roll Batch'}</h2>
+                <p className="text-xs text-gray-500">Record roll barcode, shade classification, and physical specs.</p>
+              </div>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
             </div>
 
             {errorMessage && (
@@ -205,9 +262,56 @@ export default function BatchTracking() {
 
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
-                <button type="submit" className="btn-primary">Register Roll</button>
+                <button type="submit" className="btn-primary">{editingItem ? 'Update Roll' : 'Register Roll'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Barcode Label Print Preview Modal */}
+      {barcodePrintItem && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 text-center shadow-2xl space-y-4">
+            <div className="border-2 border-dashed border-gray-300 p-6 rounded-2xl bg-gray-50 font-mono text-left space-y-2">
+              <div className="text-center border-b pb-2 border-gray-200">
+                <h4 className="font-extrabold text-base text-gray-900">TEXTILEFLOW FABRIC ROLL</h4>
+                <p className="text-xs text-gray-500">INDUSTRIAL BARCODE PASS</p>
+              </div>
+              <div className="text-xs space-y-1 pt-2">
+                <p><strong className="text-gray-900">ROLL ID:</strong> {barcodePrintItem.rollNumber}</p>
+                <p><strong className="text-gray-900">LOT #:</strong> {barcodePrintItem.lotNumber}</p>
+                <p><strong className="text-gray-900">FABRIC:</strong> {barcodePrintItem.fabricName}</p>
+                <p><strong className="text-gray-900">SHADE:</strong> {barcodePrintItem.shadeGroup}</p>
+                <p><strong className="text-gray-900">SPECS:</strong> {barcodePrintItem.gsm} GSM | {barcodePrintItem.netWeightKg} KG | {barcodePrintItem.lengthMeters} M</p>
+              </div>
+              <div className="pt-4 text-center">
+                {/* SVG Barcode Mock */}
+                <div className="h-12 bg-slate-900 text-white font-bold flex items-center justify-center tracking-widest rounded text-sm">
+                  ||| | |||| | ||||| || | {barcodePrintItem.rollNumber}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-center gap-3">
+              <button onClick={() => setBarcodePrintItem(null)} className="btn-secondary text-xs">Close</button>
+              <button onClick={() => window.print()} className="btn-primary text-xs flex items-center gap-1.5">
+                <Printer size={14} /> Print Label
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl">
+            <Trash2 className="mx-auto text-red-500 mb-3" size={36} />
+            <h3 className="font-bold text-gray-900 text-base mb-2">Delete Fabric Roll?</h3>
+            <p className="text-xs text-gray-500 mb-6">Delete roll barcode {deleteConfirm.rollNumber}?</p>
+            <div className="flex justify-center gap-3">
+              <button onClick={() => setDeleteConfirm(null)} className="btn-secondary text-xs">Cancel</button>
+              <button onClick={() => handleDelete(deleteConfirm._id)} className="btn-danger text-xs">Delete Roll</button>
+            </div>
           </div>
         </div>
       )}

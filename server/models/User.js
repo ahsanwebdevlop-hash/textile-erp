@@ -5,7 +5,27 @@ const userSchema = new mongoose.Schema({
   name: { type: String, required: [true, 'Name is required'], trim: true },
   email: { type: String, required: [true, 'Email is required'], unique: true, lowercase: true, trim: true },
   password: { type: String, required: [true, 'Password is required'], minlength: [6, 'Password must be at least 6 characters'] },
-  role: { type: String, enum: ['admin', 'manager', 'employee'], default: 'employee' },
+  company: { type: mongoose.Schema.Types.ObjectId, ref: 'Company' },
+  role: { 
+    type: String, 
+    enum: [
+      'super_admin', 
+      'admin', 
+      'manager', 
+      'production_manager', 
+      'inventory_manager', 
+      'accounts_manager', 
+      'purchase_manager', 
+      'sales_manager', 
+      'quality_manager', 
+      'employee'
+    ], 
+    default: 'admin' 
+  },
+  department: { type: String, default: 'General' },
+  phone: { type: String, default: '' },
+  avatar: { type: String, default: '' },
+  active: { type: Boolean, default: true }
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {
